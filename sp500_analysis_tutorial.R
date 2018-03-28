@@ -4,7 +4,8 @@
 
 
 # Prerequisites ----------------------------------------------------------------
-library(quantmod)   # get stock prices; useful stock analysis functions
+#library(quantmod)   # get stock prices; useful stock analysis functions
+library(tidyquant)
 library(xts)        # working with extensible time series
 library(rvest)      # web scraping
 library(tidyverse)  # ggplot2, purrr, dplyr, tidyr, readr, tibble
@@ -32,9 +33,32 @@ names(sp_500) <- sp_500 %>%
 
 # Creating Functions to Map ----------------------------------------------------
 
+touch_ticker_symbols <- function(symbols) {
+    
+    for (i in seq_along(symbols)) {
+        hyph = gregexpr(pattern = "-", symbols[i])
+        per = gregexpr(pattern = "[.]", symbols[i])
+        
+        if (hyph[[1]][1] > 0 ) {
+            symbols[i] = substr(symbols[i], 1, hyph[[1]][1] - 1)
+            
+        } else if (per[[1]][1] > 0 ) {
+            symbols[i] = substr(symbols[i], 1, per[[1]][1] - 1)
+        }
+    }
+    
+    symbols = unique(symbols)
+}
+
+# get_stock_prices <- function(ticker, ...) {
+#     stock_prices <- ticker %>% tq_get(get="stock.prices", complete_cases=FALSE)
+# }
+
 get_stock_prices <- function(ticker, return_format = "tibble", ...) {
     # Get stock prices
+    #stock_prices_xts <- getSymbols(Symbols = ticker, src="av", api.key="RY98ZU0IUEU9M12V", adjusted=TRUE, auto.assign = FALSE, ...)
     stock_prices_xts <- getSymbols(Symbols = ticker, auto.assign = FALSE, ...)
+    #stock_prices_xts <- ticker %>% tq_get(get="stock.prices", complete_cases=TRUE)
     # Rename
     names(stock_prices_xts) <- c("Open", "High", "Low", "Close", "Volume", "Adjusted")
     # Return in xts format if tibble is not specified
@@ -73,7 +97,12 @@ get_log_returns <- function(x, return_format = "tibble", period = 'daily', ...) 
 
 # Mapping the Functions --------------------------------------------------------
 from <- "2007-01-01"
-to   <- today()
+to   <- today(tzone=Sys.timezone())
+# sp_500$ticker.symbol <- sp_500$ticker.symbol %>% touch_ticker_symbols()
+# sp_500_temp <- sp_500$ticker.symbol %>% get_stock_prices(from=from, to=to)
+# sp_500_temp <- sp_500_temp %>% filter()
+# sp_500 <- sp_500 %>% filter(ticker.symbol == sp_500_temp$symbol)
+sp_500 <- sp_500 %>% filter(ticker.symbol != "BF.B" & ticker.symbol != "BRK.B")
 sp_500 <- sp_500 %>%
     mutate(
         stock.prices = map(ticker.symbol,
@@ -82,6 +111,7 @@ sp_500 <- sp_500 %>%
                                                          from = from,
                                                          to   = to)
         ),
+        # stock_prices = sp_500_temp$stock.prices,
         log.returns  = map(stock.prices,
                            function(.x) get_log_returns(.x, return_format = "tibble")),
         mean.log.returns = map_dbl(log.returns, ~ mean(.$Log.Returns)),
